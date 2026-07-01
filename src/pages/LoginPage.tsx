@@ -80,10 +80,6 @@ export function LoginPage() {
       <div className="w-full max-w-5xl">
         {/* Header */}
         <div className="mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 shadow-sm mb-6">
-            <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-sm font-medium text-gray-600">Live on the MedNet ledger</span>
-          </div>
 
           <h1 className="text-5xl sm:text-6xl font-serif text-gray-900 mb-1 leading-tight">
             One patient.
@@ -115,22 +111,6 @@ export function LoginPage() {
               Doctor login
               <ChevronRight className="w-4 h-4 text-gray-400 transition-transform group-hover:translate-x-1" />
             </button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-8 border-t border-gray-200 pt-8 mb-10">
-          <div>
-            <p className="text-3xl font-serif text-gray-900">12.4M</p>
-            <p className="text-sm text-gray-500 uppercase tracking-wider mt-1">Records Anchored</p>
-          </div>
-          <div>
-            <p className="text-3xl font-serif text-gray-900">8,210</p>
-            <p className="text-sm text-gray-500 uppercase tracking-wider mt-1">Verified Providers</p>
-          </div>
-          <div>
-            <p className="text-3xl font-serif text-gray-900">1.2s</p>
-            <p className="text-sm text-gray-500 uppercase tracking-wider mt-1">Avg. Consent Time</p>
           </div>
         </div>
 
@@ -168,7 +148,7 @@ export function LoginPage() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">Verified Identity</p>
-                <p className="text-sm text-gray-500">Aadhaar-linked health ID</p>
+                <p className="text-sm text-gray-500">Verified digital health record</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

@@ -1,9 +1,9 @@
 import React from 'react';
 import { Download, Smartphone, FileText, QrCode, Heart, Phone, AlertTriangle } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useCurrentUser, usePatientRecords } from '../../hooks/usePatientData';
 import { SkeletonCard } from '../../components';
 
-// Static patient profile info (age, blood group, etc. - only doctor can modify)
 const PATIENT_PROFILES: Record<string, { age: number; bloodGroup: string; allergies: string[]; emergencyContact: { name: string; phone: string }; gender: string }> = {
   'MC-2026-00000001': {
     age: 34,
@@ -58,7 +58,7 @@ export function QRCard() {
           </div>
 
           <div className="relative flex h-full">
-            {/* Left side - QR and info */}
+            {/* Left side - info */}
             <div className="flex-1 space-y-3">
               {/* Logo */}
               <div className="flex items-center gap-2">
@@ -94,21 +94,13 @@ export function QRCard() {
             {/* Right side - QR Code */}
             <div className="flex flex-col items-end justify-between">
               <div className="bg-white p-2 rounded-lg">
-                {/* Mock QR Code Pattern */}
-                <div className="w-24 h-24 grid grid-cols-8 gap-0.5">
-                  {Array.from({ length: 64 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`${
-                        (i < 12 || (i > 15 && i < 24) || i > 55 || i % 8 < 2)
-                          ? 'bg-gray-900'
-                          : Math.random() > 0.5
-                          ? 'bg-gray-900'
-                          : 'bg-white'
-                      }`}
-                    />
-                  ))}
-                </div>
+                <QRCodeSVG
+                  value={healthId}
+                  size={96}
+                  bgColor="#ffffff"
+                  fgColor="#111827"
+                  level="M"
+                />
               </div>
               <p className="text-xs opacity-80 mt-2">Scan for records</p>
             </div>

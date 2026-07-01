@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, ArrowLeft, Eye, EyeOff, UserPlus, LogIn, Loader2, Play } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, UserPlus, LogIn, Loader2, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store';
 import { useNavigate } from 'react-router-dom';
@@ -142,9 +142,6 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-100 mb-4">
-            <Heart className="w-8 h-8 text-primary-600" />
-          </div>
           <h1 className="text-3xl font-bold text-gray-900">MediChain</h1>
           <p className="text-gray-600 mt-2">
             {mode === 'login' ? 'Sign in to your health account' : 'Create your health identity'}

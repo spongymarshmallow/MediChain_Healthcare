@@ -1,48 +1,66 @@
-import React, { useState } from 'react';
-import { Stethoscope, ArrowLeft, Eye, EyeOff, LogIn, Loader2, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Eye, EyeOff, LogIn, Loader2, ChevronDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store';
 import { useNavigate } from 'react-router-dom';
-import { doctors } from '../data/doctors';
 
 interface DoctorAuthProps {
   onBack: () => void;
 }
 
-const DEMO_DOCTOR_NAME = 'Rajesh Gupta';
+interface RegisteredDoctor {
+  id: string;
+  name: string;
+  specialty: string;
+  hospital: string;
+}
+
+const DEMO_DOCTOR_ID = 'doc-001';
+const DEMO_DOCTOR_NAME = 'Dr. Rajesh Gupta';
 const DEMO_DOCTOR_PASSWORD = 'doctor123';
 
 export function DoctorAuth({ onBack }: DoctorAuthProps) {
-  const [name, setName] = useState('');
+  const [doctors, setDoctors] = useState<RegisteredDoctor[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetchingDoctors, setFetchingDoctors] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const { setRole, setUserId } = useAuthStore();
   const navigate = useNavigate();
 
-  const matchingDoctors = doctors.filter(d =>
-    d.name.toLowerCase().includes(name.toLowerCase())
-  );
+  useEffect(() => {
+    async function fetchDoctors() {
+      const { data, error: fetchError } = await supabase
+        .from('registered_doctors')
+        .select('id, name, specialty, hospital')
+        .order('name');
+
+      if (!fetchError && data) {
+        setDoctors(data);
+      }
+      setFetchingDoctors(false);
+    }
+    fetchDoctors();
+  }, []);
+
+  const selectedDoctor = doctors.find(d => d.id === selectedDoctorId) ?? null;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const doctor = doctors.find(d =>
-      d.name.toLowerCase() === name.toLowerCase()
-    );
-
-    if (!doctor) {
-      setError('Doctor not found. Please check your name or use demo credentials.');
+    if (!selectedDoctor) {
+      setError('Please select a doctor from the list.');
       setLoading(false);
       return;
     }
 
     try {
-      const email = `doctor-${doctor.id.replace('doc-', '')}@medichain.app`;
+      const email = `doctor-${selectedDoctor.id.replace('doc-', '')}@medichain.app`;
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -52,7 +70,7 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
         if (signInError.message.includes('Invalid login credentials')) {
           if (password === DEMO_DOCTOR_PASSWORD) {
             setRole('doctor');
-            setUserId(doctor.id);
+            setUserId(selectedDoctor.id);
             navigate('/doctor');
             return;
           }
@@ -65,13 +83,13 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
 
       if (data.user) {
         setRole('doctor');
-        setUserId(doctor.id);
+        setUserId(selectedDoctor.id);
         navigate('/doctor');
       }
     } catch {
       if (password === DEMO_DOCTOR_PASSWORD) {
         setRole('doctor');
-        setUserId(doctor.id);
+        setUserId(selectedDoctor.id);
         navigate('/doctor');
         return;
       }
@@ -82,7 +100,7 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
   };
 
   const fillDemoCredentials = () => {
-    setName(DEMO_DOCTOR_NAME);
+    setSelectedDoctorId(DEMO_DOCTOR_ID);
     setPassword(DEMO_DOCTOR_PASSWORD);
   };
 
@@ -98,13 +116,8 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-100 mb-4">
-            <Stethoscope className="w-8 h-8 text-blue-600" />
-          </div>
           <h1 className="text-3xl font-bold text-gray-900">Doctor Portal</h1>
-          <p className="text-gray-600 mt-2">
-            Sign in to access patient records
-          </p>
+          <p className="text-gray-600 mt-2">Sign in to access patient records</p>
         </div>
 
         {/* Auth Form */}
@@ -118,28 +131,30 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Doctor Name
+                Select Doctor
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
+                <select
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
                   required
-                  list="doctor-names"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                />
-                <datalist id="doctor-names">
+                  disabled={fetchingDoctors}
+                  className="w-full appearance-none px-4 py-3 pr-10 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 disabled:opacity-60"
+                >
+                  <option value="">
+                    {fetchingDoctors ? 'Loading doctors...' : 'Select your name'}
+                  </option>
                   {doctors.map(d => (
-                    <option key={d.id} value={d.name} />
+                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
-                </datalist>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Select from registered doctors or type your name
-              </p>
+              {selectedDoctor && (
+                <p className="text-xs text-blue-600 mt-1">
+                  {selectedDoctor.specialty} &middot; {selectedDoctor.hospital}
+                </p>
+              )}
             </div>
 
             <div>
@@ -167,7 +182,7 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || fetchingDoctors}
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -184,16 +199,6 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
             </button>
           </form>
 
-          {/* Selected Doctor Info */}
-          {matchingDoctors.length === 1 && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-xs text-blue-600 mb-1">Doctor Found:</p>
-              <p className="font-medium text-gray-900">{matchingDoctors[0].name}</p>
-              <p className="text-sm text-gray-600">{matchingDoctors[0].specialty}</p>
-              <p className="text-sm text-gray-600">{matchingDoctors[0].hospital}</p>
-            </div>
-          )}
-
           {/* Demo Mode */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 mb-3 text-center">
@@ -207,28 +212,8 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
               Use Demo Account
             </button>
             <p className="text-xs text-gray-400 mt-2 text-center">
-              Dr. {DEMO_DOCTOR_NAME} | Password: <code className="font-mono">{DEMO_DOCTOR_PASSWORD}</code>
+              {DEMO_DOCTOR_NAME} | Password: <code className="font-mono">{DEMO_DOCTOR_PASSWORD}</code>
             </p>
-          </div>
-        </div>
-
-        {/* Available Doctors */}
-        <div className="mt-6 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <p className="text-xs font-medium text-gray-500 mb-2">Registered Doctors:</p>
-          <div className="space-y-2">
-            {doctors.map(doctor => (
-              <button
-                key={doctor.id}
-                type="button"
-                onClick={() => setName(doctor.name)}
-                className="w-full text-left p-2 rounded hover:bg-gray-50 transition-colors"
-              >
-                <p className="text-sm font-medium text-gray-900">{doctor.name}</p>
-                <p className="text-xs text-gray-500">
-                  {doctor.specialty} | {doctor.hospital}
-                </p>
-              </button>
-            ))}
           </div>
         </div>
       </div>
