@@ -7,7 +7,7 @@ interface NotificationContextValue {
   unreadCount: number;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
-  userId: string | null;
+  healthId: string | null;
 }
 
 const NotificationContext = createContext<NotificationContextValue>({
@@ -16,7 +16,7 @@ const NotificationContext = createContext<NotificationContextValue>({
   unreadCount: 0,
   markAsRead: async () => {},
   markAllAsRead: async () => {},
-  userId: null,
+  healthId: null,
 });
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {

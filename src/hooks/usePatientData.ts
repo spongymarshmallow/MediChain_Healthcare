@@ -192,7 +192,14 @@ async function notifyPatient(
 ) {
   const userId = await getPatientUserId(healthId);
   if (!userId) return;
-  await supabase.from('notifications').insert({ user_id: userId, type, title, message, link: link ?? null });
+  await supabase.from('notifications').insert({
+    user_id: userId,
+    health_id: healthId,
+    type,
+    title,
+    message,
+    link: link ?? null,
+  });
 }
 
 // --- Doctor consent ---
@@ -382,6 +389,7 @@ export async function addConsentRequest(healthId: string, request: {
     if (user?.id) {
       await supabase.from('notifications').insert({
         user_id: user.id,
+        health_id: healthId,
         type: 'Consent Request',
         title: 'New Consent Request',
         message: `${request.requester_name} (${request.requester_type}) is requesting access to your records: ${request.reason}`,
