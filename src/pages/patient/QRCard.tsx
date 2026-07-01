@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, Smartphone, FileText, QrCode, Heart, Phone, AlertTriangle } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+
 import { useCurrentUser, usePatientRecords } from '../../hooks/usePatientData';
 import { SkeletonCard } from '../../components';
 
@@ -94,12 +94,12 @@ export function QRCard() {
             {/* Right side - QR Code */}
             <div className="flex flex-col items-end justify-between">
               <div className="bg-white p-2 rounded-lg">
-                <QRCodeSVG
-                  value={healthId}
-                  size={96}
-                  bgColor="#ffffff"
-                  fgColor="#111827"
-                  level="M"
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=96x96&data=${encodeURIComponent(healthId)}&color=111827&bgcolor=ffffff`}
+                  alt={`QR code for ${healthId}`}
+                  width={96}
+                  height={96}
+                  className="block"
                 />
               </div>
               <p className="text-xs opacity-80 mt-2">Scan for records</p>
