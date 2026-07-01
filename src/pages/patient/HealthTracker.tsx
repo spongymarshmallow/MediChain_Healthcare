@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, AlertCircle } from 'lucide-react';
+import { Activity, TrendingUp, Zap, BarChart2 } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -7,34 +7,47 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
 } from 'recharts';
-import { useCurrentUser, usePatientRecords, addHealthLog } from '../../hooks/usePatientData';
+import { useCurrentUser, useHealthLogs, addHealthLog } from '../../hooks/usePatientData';
 import { SkeletonCard } from '../../components';
 import { calculateImmunityScore } from '../../utils/riskScorer';
 import type { SymptomType } from '../../types';
 
-const symptoms: SymptomType[] = ['Cold', 'Cough', 'Fever', 'Allergy', 'Headache', 'Stomach Infection', 'Seasonal Illness', 'Fatigue', 'Weakness', 'Other'];
+const symptoms: SymptomType[] = [
+  'Cold', 'Cough', 'Fever', 'Allergy', 'Headache',
+  'Stomach Infection', 'Seasonal Illness', 'Fatigue', 'Weakness', 'Other',
+];
 const severityOptions = ['Mild', 'Moderate', 'Severe'] as const;
 
-const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
+const COLORS = [
+  '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6',
+  '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1',
+];
+
+const SYMPTOM_BASE: Record<SymptomType, number> = {
+  Cold: 0, Cough: 0, Fever: 0, Allergy: 0, Headache: 0,
+  'Stomach Infection': 0, 'Seasonal Illness': 0, Fatigue: 0, Weakness: 0, Other: 0,
+};
+
+const severityLabel = (v: number) =>
+  v < 1.5 ? 'Low' : v < 2.5 ? 'Moderate' : 'High';
 
 export function HealthTracker() {
   const { profile, loading: authLoading } = useCurrentUser();
-  const healthId = profile?.health_id || null;
-  const { data, loading: dataLoading, refetch } = usePatientRecords(healthId);
+  const healthId = profile?.health_id ?? null;
+  const { logs: allLogs, loading: logsLoading } = useHealthLogs(healthId);
+
   const [symptom, setSymptom] = useState<SymptomType>('Cold');
   const [severity, setSeverity] = useState<'Mild' | 'Moderate' | 'Severe'>('Mild');
   const [duration, setDuration] = useState(3);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const loading = authLoading || dataLoading;
-  const allLogs = data.healthLogs;
+  const loading = authLoading || logsLoading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,67 +57,46 @@ export function HealthTracker() {
     setSymptom('Cold');
     setSeverity('Mild');
     setDuration(3);
-    refetch();
+    setDate(new Date().toISOString().split('T')[0]);
     setSubmitting(false);
+    setSubmitSuccess(true);
+    setTimeout(() => setSubmitSuccess(false), 3000);
   };
 
-  // Calculate stats
   const currentYear = new Date().getFullYear().toString();
-  const currentYearLogs = allLogs.filter((l: any) => l.date.startsWith(currentYear));
-  const lastYearLogs = allLogs.filter((l: any) => l.date.startsWith((parseInt(currentYear) - 1).toString()));
+  const currentYearLogs = allLogs.filter((l: any) => l.date?.startsWith(currentYear));
 
-  const symptomCounts: Record<SymptomType, number> = {
-    Cold: 0, Cough: 0, Fever: 0, Allergy: 0, Headache: 0,
-    'Stomach Infection': 0, 'Seasonal Illness': 0, Fatigue: 0, Weakness: 0, Other: 0,
-  };
-  currentYearLogs.forEach((l: any) => symptomCounts[l.symptom as SymptomType]++);
-
-  const mostFrequentSymptom = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1])[0];
-  const avgSeverity = currentYearLogs.length > 0
-    ? (currentYearLogs.reduce((acc: number, l: any) => acc + (l.severity === 'Mild' ? 1 : l.severity === 'Moderate' ? 2 : 3), 0) / currentYearLogs.length).toFixed(1)
-    : '0';
-  const immunityScore = calculateImmunityScore(allLogs);
-
-  // Monthly data for charts
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthlyData = months.map((month, i) => {
-    const monthLogs = allLogs.filter((l: any) => {
-      const d = new Date(l.date);
-      return d.getMonth() === i;
-    });
-    return { month, count: monthLogs.length };
+  const symptomCounts: Record<SymptomType, number> = { ...SYMPTOM_BASE };
+  currentYearLogs.forEach((l: any) => {
+    if (l.symptom in symptomCounts) symptomCounts[l.symptom as SymptomType]++;
   });
 
-  // Symptom distribution for pie chart
-  const symptomData = Object.entries(symptomCounts)
-    .filter(([_, count]) => count > 0)
+  const mostFrequent = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1])[0];
+
+  const avgSeverityVal =
+    currentYearLogs.length > 0
+      ? currentYearLogs.reduce(
+          (acc: number, l: any) =>
+            acc + (l.severity === 'Mild' ? 1 : l.severity === 'Moderate' ? 2 : 3),
+          0
+        ) / currentYearLogs.length
+      : 0;
+
+  const immunityScore = calculateImmunityScore(allLogs);
+
+  // Monthly distribution (all-time, current year month buckets)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthlyData = months.map((month, i) => ({
+    month,
+    count: currentYearLogs.filter((l: any) => new Date(l.date).getMonth() === i).length,
+  }));
+
+  const symptomPieData = Object.entries(symptomCounts)
+    .filter(([, count]) => count > 0)
     .map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
 
-  // 2-year trend
-  const yearlyTrend = [
-    { year: (parseInt(currentYear) - 1).toString(), episodes: lastYearLogs.length },
-    { year: currentYear, episodes: currentYearLogs.length },
-  ];
-
-  // AI Insights
-  const insights: string[] = [];
-  if (currentYearLogs.length > 0) {
-    if (symptomCounts['Cold'] + symptomCounts['Cough'] > 5) {
-      insights.push(`Cold or Cough episodes reported ${symptomCounts['Cold'] + symptomCounts['Cough']} times this year -- more than average.`);
-    }
-    if (symptomCounts['Allergy'] > 3) {
-      const allergyMonths = allLogs.filter((l: any) => l.symptom === 'Allergy').map((l: any) => new Date(l.date).getMonth());
-      if (allergyMonths.includes(2) || allergyMonths.includes(3) || allergyMonths.includes(4)) {
-        insights.push('Allergy episodes are most frequent in March to May, suggesting seasonal triggers.');
-      }
-    }
-    if (symptomCounts['Fever'] > 4) {
-      insights.push('Frequent fever episodes detected. Consider consulting a physician.');
-    }
-    if (immunityScore < 70) {
-      insights.push('Consider a flu vaccine before winter to boost immunity.');
-    }
-  }
+  // Recent entries (last 5)
+  const recentLogs = allLogs.slice(0, 5);
 
   if (loading) {
     return (
@@ -120,40 +112,50 @@ export function HealthTracker() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Health Tracker</h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Track symptoms and monitor your immunity
+          Log symptoms and monitor your health in real time
         </p>
       </div>
 
-      {/* Quick Entry Form */}
+      {/* Log form */}
       <div className="glass-card-solid p-6">
         <h2 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <Activity className="w-5 h-5 text-primary-500" />
           Log Health Episode
         </h2>
+
+        {submitSuccess && (
+          <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-lg text-emerald-700 dark:text-emerald-400 text-sm">
+            Episode logged successfully.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Symptom</label>
             <select
               value={symptom}
               onChange={(e) => setSymptom(e.target.value as SymptomType)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             >
-              {symptoms.map(s => <option key={s} value={s}>{s}</option>)}
+              {symptoms.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Severity</label>
-            <div className="flex gap-2">
-              {severityOptions.map(s => (
+            <div className="flex gap-1">
+              {severityOptions.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setSeverity(s)}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors ${
                     severity === s
-                      ? s === 'Mild' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                      : s === 'Moderate' ? 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-400'
-                      : 'bg-danger-100 dark:bg-danger-900/30 text-danger-700 dark:text-danger-400'
+                      ? s === 'Mild'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                        : s === 'Moderate'
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
                   }`}
                 >
@@ -162,6 +164,7 @@ export function HealthTracker() {
               ))}
             </div>
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Duration (days)</label>
             <input
@@ -170,64 +173,76 @@ export function HealthTracker() {
               max={30}
               value={duration}
               onChange={(e) => setDuration(parseInt(e.target.value))}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date</label>
             <input
               type="date"
               value={date}
+              max={new Date().toISOString().split('T')[0]}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             />
           </div>
+
           <div className="flex items-end">
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+              className="w-full py-2 px-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {submitting ? 'Saving...' : 'Submit'}
+              {submitting ? 'Saving...' : 'Log Episode'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="glass-card-solid p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total Episodes ({currentYear})</p>
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+            <BarChart2 className="w-4 h-4" />
+            <span className="text-xs">Episodes ({currentYear})</span>
+          </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{currentYearLogs.length}</p>
         </div>
+
         <div className="glass-card-solid p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Most Frequent</p>
-          <p className="text-xl font-bold text-primary-600 dark:text-primary-400">{mostFrequentSymptom?.[0] || 'N/A'}</p>
-        </div>
-        <div className="glass-card-solid p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Avg Severity</p>
-          <p className={`text-xl font-bold ${parseFloat(avgSeverity) > 1.5 ? 'text-warning-500' : 'text-emerald-500'}`}>
-            {avgSeverity} / 3
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+            <TrendingUp className="w-4 h-4" />
+            <span className="text-xs">Most Frequent</span>
+          </div>
+          <p className="text-lg font-bold text-primary-600 dark:text-primary-400 leading-tight">
+            {mostFrequent?.[1] > 0 ? mostFrequent[0] : 'None'}
           </p>
         </div>
+
         <div className="glass-card-solid p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Immunity Score</p>
-          <div className="flex items-center gap-2">
-            <p className={`text-3xl font-bold ${immunityScore >= 70 ? 'text-emerald-500' : immunityScore >= 40 ? 'text-warning-500' : 'text-danger-500'}`}>
-              {Math.round(immunityScore)}
-            </p>
-            <div className="flex-1">
-              <div className="w-12 h-12 rounded-full border-4 relative" style={{
-                borderColor: immunityScore >= 70 ? '#10B981' : immunityScore >= 40 ? '#F59E0B' : '#EF4444',
-                borderTopColor: 'transparent',
-                transform: 'rotate(-45deg)'
-              }}>
-                <div className="absolute inset-0 flex items-center justify-center" style={{ transform: 'rotate(45deg)' }}>
-                  <span className="text-xs text-gray-500">%</span>
-                </div>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+            <Activity className="w-4 h-4" />
+            <span className="text-xs">Avg Severity</span>
           </div>
+          <p className={`text-xl font-bold ${
+            avgSeverityVal < 1.5 ? 'text-emerald-500' : avgSeverityVal < 2.5 ? 'text-amber-500' : 'text-red-500'
+          }`}>
+            {currentYearLogs.length > 0 ? severityLabel(avgSeverityVal) : 'N/A'}
+          </p>
+        </div>
+
+        <div className="glass-card-solid p-4">
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+            <Zap className="w-4 h-4" />
+            <span className="text-xs">Immunity Score</span>
+          </div>
+          <p className={`text-3xl font-bold ${
+            immunityScore >= 70 ? 'text-emerald-500' : immunityScore >= 40 ? 'text-amber-500' : 'text-red-500'
+          }`}>
+            {Math.round(immunityScore)}
+            <span className="text-base font-normal text-gray-400 ml-0.5">%</span>
+          </p>
         </div>
       </div>
 
@@ -235,13 +250,13 @@ export function HealthTracker() {
       {allLogs.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="glass-card-solid p-6">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-4">Monthly Symptom Frequency</h3>
-            <ResponsiveContainer width="100%" height={250}>
+            <h3 className="font-medium text-gray-900 dark:text-white mb-4">Monthly Episodes ({currentYear})</h3>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyData}>
-                <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-                <YAxis stroke="#9ca3af" fontSize={12} />
+                <XAxis dataKey="month" stroke="#9ca3af" fontSize={11} />
+                <YAxis stroke="#9ca3af" fontSize={11} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                  contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#f3f4f6' }}
                   labelStyle={{ color: '#9ca3af' }}
                 />
                 <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
@@ -250,71 +265,67 @@ export function HealthTracker() {
           </div>
 
           <div className="glass-card-solid p-6">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-4">Symptom Distribution</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={symptomData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ name }) => name}
-                >
-                  {symptomData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <h3 className="font-medium text-gray-900 dark:text-white mb-4">Symptom Breakdown</h3>
+            {symptomPieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={symptomPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, value }) => `${name} (${value})`}
+                    labelLine={false}
+                  >
+                    {symptomPieData.map((entry, i) => (
+                      <Cell key={`cell-${i}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-8 text-center">No episodes this year yet.</p>
+            )}
           </div>
         </div>
       )}
 
-      {/* AI Health Insights */}
-      {allLogs.length > 0 && (
-        <div className="glass-card-solid p-6 border-l-4 border-warning-500">
-          <div className="flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 text-warning-500 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">AI Health Insights</h3>
-              {insights.length > 0 ? (
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                  {insights.map((insight, i) => (
-                    <li key={i}>{insight}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No significant patterns detected yet. Continue tracking for personalized insights.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Yearly Trend */}
-      {allLogs.length > 0 && (
+      {/* Recent logs */}
+      {recentLogs.length > 0 && (
         <div className="glass-card-solid p-6">
-          <h3 className="font-medium text-gray-900 dark:text-white mb-4">Yearly Comparison</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={yearlyTrend}>
-              <XAxis dataKey="year" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip />
-              <Line type="monotone" dataKey="episodes" stroke="#3B82F6" strokeWidth={3} dot={{ r: 6 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <h3 className="font-medium text-gray-900 dark:text-white mb-4">Recent Entries</h3>
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recentLogs.map((log: any) => (
+              <div key={log.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">{log.symptom}</span>
+                  <span className="text-xs ml-2 text-gray-500 dark:text-gray-400">{log.duration} day{log.duration !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    log.severity === 'Mild' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                    : log.severity === 'Moderate' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                  }`}>
+                    {log.severity}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{log.date}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Empty state */}
       {allLogs.length === 0 && (
-        <div className="glass-card-solid p-8 text-center">
-          <Activity className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-600 mb-2" />
-          <p className="text-gray-500 dark:text-gray-400">Start tracking your health by logging symptoms above.</p>
+        <div className="glass-card-solid p-10 text-center">
+          <Activity className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <p className="text-gray-500 dark:text-gray-400">No episodes logged yet. Use the form above to start tracking.</p>
         </div>
       )}
     </div>

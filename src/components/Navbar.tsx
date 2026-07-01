@@ -9,7 +9,8 @@ import {
   LogOut,
   Shield,
 } from 'lucide-react';
-import { useAuthStore, useNotificationStore } from '../store';
+import { useAuthStore } from '../store';
+import { useNotificationContext } from '../context/NotificationContext';
 
 const roleLabels: Record<string, string> = {
   patient: 'Patient',
@@ -31,10 +32,8 @@ const roleColors: Record<string, string> = {
 
 export function Navbar() {
   const { role, isDarkMode, toggleDarkMode, logout } = useAuthStore();
-  const { getUnreadCount } = useNotificationStore();
+  const { unreadCount } = useNotificationContext();
   const navigate = useNavigate();
-
-  const unreadCount = role ? getUnreadCount(role === 'patient' ? 'pat-001' : role === 'doctor' ? 'doc-001' : 'hosp-001') : 0;
 
   const handleLogout = () => {
     logout();

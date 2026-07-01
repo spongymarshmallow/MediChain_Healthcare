@@ -1,26 +1,14 @@
 import React from 'react';
 import { Download, Smartphone, FileText, QrCode, Heart, Phone, AlertTriangle } from 'lucide-react';
-
-import { useCurrentUser, usePatientRecords } from '../../hooks/usePatientData';
+import { useCurrentUser, usePatientDetails } from '../../hooks/usePatientData';
 import { SkeletonCard } from '../../components';
-
-const PATIENT_PROFILES: Record<string, { age: number; bloodGroup: string; allergies: string[]; emergencyContact: { name: string; phone: string }; gender: string }> = {
-  'MC-2026-00000001': {
-    age: 34,
-    bloodGroup: 'O+',
-    allergies: ['Penicillin', 'Sulfa'],
-    emergencyContact: { name: 'Priya Sharma', phone: '+91 98765 43210' },
-    gender: 'Male',
-  },
-};
 
 export function QRCard() {
   const { profile, loading: authLoading } = useCurrentUser();
-  const healthId = profile?.health_id || null;
-  const { data, loading: dataLoading } = usePatientRecords(healthId);
+  const healthId = profile?.health_id ?? null;
+  const { data: patientInfo, loading: detailsLoading } = usePatientDetails(healthId);
 
-  const loading = authLoading || dataLoading;
-  const patientInfo = healthId ? PATIENT_PROFILES[healthId] : null;
+  const loading = authLoading || detailsLoading;
 
   if (loading) {
     return (
@@ -60,29 +48,25 @@ export function QRCard() {
           <div className="relative flex h-full">
             {/* Left side - info */}
             <div className="flex-1 space-y-3">
-              {/* Logo */}
               <div className="flex items-center gap-2">
                 <Heart className="w-6 h-6" />
                 <span className="font-bold text-lg">MediChain</span>
               </div>
 
-              {/* Health ID */}
               <div className="space-y-1">
                 <p className="text-xs opacity-80">Health ID</p>
                 <p className="font-mono font-bold text-sm tracking-wide">{healthId}</p>
               </div>
 
-              {/* Name */}
               <div className="space-y-1">
                 <p className="text-xs opacity-80">Name</p>
                 <p className="font-semibold">{profile.name}</p>
               </div>
 
-              {/* Blood Group & Age */}
               <div className="flex gap-4">
                 <div className="space-y-1">
                   <p className="text-xs opacity-80">Blood</p>
-                  <p className="font-bold text-xl">{patientInfo?.bloodGroup || '--'}</p>
+                  <p className="font-bold text-xl">{patientInfo?.blood_group || '--'}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs opacity-80">Age</p>
@@ -106,16 +90,16 @@ export function QRCard() {
             </div>
           </div>
 
-          {/* Emergency info strip */}
+          {/* Emergency strip */}
           <div className="absolute bottom-0 left-0 right-0 bg-white/10 backdrop-blur px-4 py-2 flex items-center gap-4 text-xs">
-            {patientInfo?.emergencyContact && (
+            {patientInfo?.emergency_contact && (
               <div className="flex items-center gap-1">
                 <Phone className="w-3 h-3" />
-                <span>{patientInfo.emergencyContact.phone}</span>
+                <span>{patientInfo.emergency_contact}</span>
               </div>
             )}
             {patientInfo?.allergies && patientInfo.allergies.length > 0 && (
-              <div className="flex items-center gap-1 text-warning-300">
+              <div className="flex items-center gap-1 text-amber-300">
                 <AlertTriangle className="w-3 h-3" />
                 <span>{patientInfo.allergies.slice(0, 2).join(', ')}</span>
               </div>
@@ -139,30 +123,37 @@ export function QRCard() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Blood Group</span>
-              <span className="font-bold text-danger-500">{patientInfo?.bloodGroup || 'N/A'}</span>
+              <span className="font-bold text-red-500">{patientInfo?.blood_group || 'N/A'}</span>
             </div>
           </div>
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Age</span>
-              <span className="text-gray-900 dark:text-white">{patientInfo?.age ? `${patientInfo.age} years` : 'N/A'}</span>
+              <span className="text-gray-900 dark:text-white">
+                {patientInfo?.age ? `${patientInfo.age} years` : 'N/A'}
+              </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500 dark:text-gray-400">Gender</span>
-              <span className="text-gray-900 dark:text-white">{patientInfo?.gender || 'N/A'}</span>
+              <span className="text-gray-500 dark:text-gray-400">Height / Weight</span>
+              <span className="text-gray-900 dark:text-white">
+                {patientInfo?.height ? `${patientInfo.height} cm` : '--'} / {patientInfo?.weight ? `${patientInfo.weight} kg` : '--'}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Emergency Contact</span>
-              <span className="text-gray-900 dark:text-white text-xs">{patientInfo?.emergencyContact?.name || 'N/A'}</span>
+              <span className="text-gray-900 dark:text-white text-xs">
+                {patientInfo?.emergency_contact_name || 'N/A'}
+              </span>
             </div>
           </div>
         </div>
+
         {patientInfo?.allergies && patientInfo.allergies.length > 0 && (
-          <div className="mt-4 p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
-            <p className="text-xs font-medium text-warning-800 dark:text-warning-400 mb-1">Allergies</p>
+          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-400 mb-1">Allergies</p>
             <div className="flex flex-wrap gap-2">
-              {patientInfo.allergies.map((allergy, i) => (
-                <span key={i} className="text-xs px-2 py-1 bg-warning-100 dark:bg-warning-900/50 text-warning-700 dark:text-warning-400 rounded-full">
+              {patientInfo.allergies.map((allergy: string, i: number) => (
+                <span key={i} className="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 rounded-full">
                   {allergy}
                 </span>
               ))}

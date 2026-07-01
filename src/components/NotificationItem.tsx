@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   FileText,
@@ -11,21 +11,21 @@ import {
   AlertCircle,
   Activity,
 } from 'lucide-react';
-import type { NotificationType } from '../types';
 import { formatRelativeTime } from '../utils';
 
 interface NotificationItemProps {
   id: string;
-  type: NotificationType;
+  type: string;
   title: string;
   message: string;
   read: boolean;
-  timestamp: string;
-  link?: string;
+  timestamp?: string;
+  created_at?: string;
+  link?: string | null;
   onMarkAsRead: (id: string) => void;
 }
 
-const notificationIcons: Record<NotificationType, React.ElementType> = {
+const notificationIcons: Record<string, React.ElementType> = {
   'Consent Request': Shield,
   'Report Uploaded': FileText,
   'Prescription Created': Pill,
@@ -37,15 +37,15 @@ const notificationIcons: Record<NotificationType, React.ElementType> = {
   'Health Pattern Insight': Activity,
 };
 
-const notificationColors: Record<NotificationType, string> = {
+const notificationColors: Record<string, string> = {
   'Consent Request': 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
   'Report Uploaded': 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
   'Prescription Created': 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-  'Emergency Access': 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400',
-  'Insurance Claim': 'bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400',
+  'Emergency Access': 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+  'Insurance Claim': 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
   'Vaccination Reminder': 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
   'Medication Reminder': 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
-  'Counterfeit Alert': 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400',
+  'Counterfeit Alert': 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
   'Health Pattern Insight': 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400',
 };
 
@@ -56,21 +56,32 @@ export function NotificationItem({
   message,
   read,
   timestamp,
+  created_at,
   link,
   onMarkAsRead,
 }: NotificationItemProps) {
-  const Icon = notificationIcons[type] || Bell;
+  const Icon = notificationIcons[type] ?? Bell;
+  const navigate = useNavigate();
+  const timeStr = timestamp ?? created_at ?? '';
 
-  const content = (
+  const handleClick = () => {
+    if (!read) onMarkAsRead(id);
+    if (link) navigate(link);
+  };
+
+  return (
     <div
-      className={`flex gap-4 p-4 rounded-lg transition-all duration-200 ${
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+      className={`flex gap-4 p-4 rounded-lg transition-all duration-200 cursor-pointer select-none ${
         read
           ? 'bg-gray-50 dark:bg-gray-800/50'
           : 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-500'
       } hover:bg-gray-100 dark:hover:bg-gray-800/70`}
-      onClick={() => !read && onMarkAsRead(id)}
     >
-      <div className={`p-2 rounded-lg ${notificationColors[type]}`}>
+      <div className={`p-2 rounded-lg flex-shrink-0 ${notificationColors[type] ?? 'bg-gray-100 text-gray-600'}`}>
         <Icon className="w-5 h-5" />
       </div>
       <div className="flex-1 min-w-0">
@@ -79,24 +90,14 @@ export function NotificationItem({
             {title}
           </h4>
           <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-            {formatRelativeTime(timestamp)}
+            {timeStr ? formatRelativeTime(timeStr) : ''}
           </span>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">{message}</p>
       </div>
       {!read && (
-        <div className="w-2 h-2 rounded-full bg-primary-500 mt-2" />
+        <div className="w-2 h-2 rounded-full bg-primary-500 mt-2 flex-shrink-0" />
       )}
     </div>
   );
-
-  if (link) {
-    return (
-      <Link to={link} className="block">
-        {content}
-      </Link>
-    );
-  }
-
-  return content;
 }
