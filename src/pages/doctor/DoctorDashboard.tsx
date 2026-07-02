@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { addLabReport, addVaccination, requestDoctorConsent } from '../../hooks/usePatientData';
 import { StatusBadge } from '../../components';
 import { formatDate } from '../../utils';
-import { useAuthStore } from '../../store';
+
 
 interface PatientProfile {
   user_id: string;
@@ -58,8 +58,6 @@ export function DoctorDashboard() {
   const [showAddLab, setShowAddLab] = useState(false);
   const [showAddVaccination, setShowAddVaccination] = useState(false);
   const [requestingConsent, setRequestingConsent] = useState(false);
-  const { userId } = useAuthStore();
-
   const doctorName = 'Dr. Rajesh Gupta';
   const doctorId = 'doc-rg-001';
 
