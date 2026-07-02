@@ -15,10 +15,6 @@ interface RegisteredDoctor {
   hospital: string;
 }
 
-const DEMO_DOCTOR_ID = 'doc-001';
-const DEMO_DOCTOR_NAME = 'Dr. Rajesh Gupta';
-const DEMO_DOCTOR_PASSWORD = 'doctor123';
-
 export function DoctorAuth({ onBack }: DoctorAuthProps) {
   const [doctors, setDoctors] = useState<RegisteredDoctor[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
@@ -68,13 +64,7 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
 
       if (signInError) {
         if (signInError.message.includes('Invalid login credentials')) {
-          if (password === DEMO_DOCTOR_PASSWORD) {
-            setRole('doctor');
-            setUserId(selectedDoctor.id);
-            navigate('/doctor');
-            return;
-          }
-          setError('Invalid password. Try the demo password or sign up first.');
+          setError('Invalid password. Please try again.');
         } else {
           setError(signInError.message);
         }
@@ -87,21 +77,10 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
         navigate('/doctor');
       }
     } catch {
-      if (password === DEMO_DOCTOR_PASSWORD) {
-        setRole('doctor');
-        setUserId(selectedDoctor.id);
-        navigate('/doctor');
-        return;
-      }
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillDemoCredentials = () => {
-    setSelectedDoctorId(DEMO_DOCTOR_ID);
-    setPassword(DEMO_DOCTOR_PASSWORD);
   };
 
   return (
@@ -198,23 +177,6 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
               )}
             </button>
           </form>
-
-          {/* Demo Mode */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500 mb-3 text-center">
-              <strong>Testing?</strong> Use demo credentials:
-            </p>
-            <button
-              type="button"
-              onClick={fillDemoCredentials}
-              className="w-full py-2 px-4 bg-warning-100 text-warning-800 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-warning-200 transition-colors text-sm"
-            >
-              Use Demo Account
-            </button>
-            <p className="text-xs text-gray-400 mt-2 text-center">
-              {DEMO_DOCTOR_NAME} | Password: <code className="font-mono">{DEMO_DOCTOR_PASSWORD}</code>
-            </p>
-          </div>
         </div>
       </div>
     </div>

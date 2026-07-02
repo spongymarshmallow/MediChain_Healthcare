@@ -8,22 +8,18 @@ import {
   Pill,
   Activity,
   BarChart3,
-  Search,
-  Stethoscope,
   FileText,
   Building2,
   Blocks,
   AlertTriangle,
-  Store,
   FlaskConical,
-  Landmark,
-  Insurance,
   Bell,
   Settings,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import type { UserRole } from '../types';
+import { useAuthStore } from '../store';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -86,11 +82,11 @@ const generalNavItems: NavItem[] = [
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const role = 'patient' as UserRole; // Default for demo
+  const { role } = useAuthStore();
 
-  // Get role from current path
+  // Get role from current path as fallback
   const pathname = window.location.pathname;
-  let currentRole: UserRole = 'patient';
+  let currentRole: UserRole = role;
   if (pathname.startsWith('/doctor')) currentRole = 'doctor';
   else if (pathname.startsWith('/hospital')) currentRole = 'hospital';
   else if (pathname.startsWith('/pharmacy')) currentRole = 'pharmacy';
@@ -125,6 +121,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === '/patient' || item.path === '/doctor' || item.path === '/hospital' || item.path === '/pharmacy' || item.path === '/government' || item.path === '/insurance'}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                   isActive

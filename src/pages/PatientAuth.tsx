@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, UserPlus, LogIn, Loader2, Play } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, UserPlus, LogIn, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store';
 import { useNavigate } from 'react-router-dom';
@@ -9,9 +9,6 @@ type AuthMode = 'login' | 'signup';
 interface PatientAuthProps {
   onBack: () => void;
 }
-
-const DEMO_HEALTH_ID = 'MC-2026-00000001';
-const DEMO_PASSWORD = 'demo123';
 
 export function PatientAuth({ onBack }: PatientAuthProps) {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -33,6 +30,23 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
     setError(null);
 
     try {
+      // First check if health_id exists in database
+      const { data: existsData, error: existsError } = await supabase.rpc('health_id_exists', {
+        p_health_id: healthId,
+      });
+
+      if (existsError) {
+        setError('Unable to verify Health ID. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!existsData) {
+        setError('Health ID not found in our records. Please sign up first to create your account.');
+        setLoading(false);
+        return;
+      }
+
       const email = `${healthId.toLowerCase().replace(/-/g, '')}@medichain.app`;
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -125,11 +139,6 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
     }
   };
 
-  const fillDemoCredentials = () => {
-    setHealthId(DEMO_HEALTH_ID);
-    setPassword(DEMO_PASSWORD);
-  };
-
   return (
     <div className="min-h-screen bg-[#f5f8fc] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -142,7 +151,7 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">MediChain</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Patient Portal</h1>
           <p className="text-gray-600 mt-2">
             {mode === 'login' ? 'Sign in to your health account' : 'Create your health identity'}
           </p>
@@ -340,24 +349,6 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
               </button>
             </form>
           )}
-
-          {/* Demo Mode */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500 mb-3 text-center">
-              <strong>Testing?</strong> Use the demo account or create a new one:
-            </p>
-            <button
-              type="button"
-              onClick={fillDemoCredentials}
-              className="w-full py-2 px-4 bg-warning-100 text-warning-800 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-warning-200 transition-colors text-sm"
-            >
-              <Play className="w-4 h-4" />
-              Use Demo Account
-            </button>
-            <p className="text-xs text-gray-400 mt-2 text-center">
-              Health ID: <code className="font-mono">{DEMO_HEALTH_ID}</code> | Password: <code className="font-mono">{DEMO_PASSWORD}</code>
-            </p>
-          </div>
         </div>
       </div>
     </div>
