@@ -56,26 +56,29 @@ export function DoctorAuth({ onBack }: DoctorAuthProps) {
     }
 
     try {
-      const email = `doctor-${selectedDoctor.id.replace('doc-', '')}@medichain.app`;
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Check password directly against registered_doctors table
+      const { data: doctorData, error: fetchError } = await supabase
+        .from('registered_doctors')
+        .select('id, password')
+        .eq('id', selectedDoctor.id)
+        .single();
 
-      if (signInError) {
-        if (signInError.message.includes('Invalid login credentials')) {
-          setError('Invalid password. Please try again.');
-        } else {
-          setError(signInError.message);
-        }
+      if (fetchError || !doctorData) {
+        setError('Doctor record not found.');
+        setLoading(false);
         return;
       }
 
-      if (data.user) {
-        setRole('doctor');
-        setUserId(selectedDoctor.id);
-        navigate('/doctor');
+      if (doctorData.password !== password) {
+        setError('Invalid password. Please try again.');
+        setLoading(false);
+        return;
       }
+
+      // Login successful - set role and redirect
+      setRole('doctor');
+      setUserId(selectedDoctor.id);
+      navigate('/doctor');
     } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
