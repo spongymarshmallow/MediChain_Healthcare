@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, UserPlus, LogIn, Loader2 } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, UserRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store';
-import { useNavigate } from 'react-router-dom';
 
 type AuthMode = 'login' | 'signup';
 
@@ -18,46 +18,54 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const { setRole } = useAuthStore();
   const navigate = useNavigate();
 
+  const clearMessages = () => {
+    setError(null);
+    setSuccess(null);
+  };
+
+  const getAccountEmail = async (identifier: string) => {
+    const value = identifier.trim();
+    if (value.includes('@')) {
+      return value;
+    }
+
+    const normalizedHealthId = value.toUpperCase();
+    const { data: existsData, error: existsError } = await supabase.rpc('health_id_exists', {
+      p_health_id: normalizedHealthId,
+    });
+
+    if (existsError) {
+      throw new Error('Unable to verify your Health ID. Please try again.');
+    }
+
+    if (!existsData) {
+      throw new Error('Health ID not found in our records. Please check it or create an account.');
+    }
+
+    return `${normalizedHealthId.toLowerCase().replace(/-/g, '')}@medichain.app`;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    clearMessages();
 
     try {
-      // First check if health_id exists in database
-      const { data: existsData, error: existsError } = await supabase.rpc('health_id_exists', {
-        p_health_id: healthId,
-      });
-
-      if (existsError) {
-        setError('Unable to verify Health ID. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      if (!existsData) {
-        setError('Health ID not found in our records. Please sign up first to create your account.');
-        setLoading(false);
-        return;
-      }
-
-      const email = `${healthId.toLowerCase().replace(/-/g, '')}@medichain.app`;
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const email = await getAccountEmail(healthId);
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
       if (signInError) {
         if (signInError.message.includes('Invalid login credentials')) {
-          setError('Invalid Health ID or password. If this is your first time, please sign up first.');
+          setError('The email or password is incorrect. Please try again.');
         } else if (signInError.message.includes('Email not confirmed')) {
-          setError('Account created but not verified. Check your email for confirmation, or try signing up again.');
+          setError('Please confirm your email address before signing in.');
         } else {
           setError(signInError.message);
         }
@@ -68,17 +76,46 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
         setRole('patient');
         navigate('/patient');
       }
-    } catch {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!healthId.trim()) {
+      setError('Enter your email address or Health ID first.');
+      setSuccess(null);
+      return;
+    }
+
+    setResettingPassword(true);
+    clearMessages();
+
+    try {
+      const email = await getAccountEmail(healthId);
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+
+      if (resetError) {
+        setError(resetError.message);
+        return;
+      }
+
+      setSuccess('If an account matches those details, password reset instructions are on the way.');
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Unable to send reset instructions. Please try again.');
+    } finally {
+      setResettingPassword(false);
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    clearMessages();
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -99,31 +136,25 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
     try {
       const generatedHealthId = healthId || `MC-2026-${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`;
       const email = `${generatedHealthId.toLowerCase().replace(/-/g, '')}@medichain.app`;
-
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            health_id: generatedHealthId,
-            name: name,
-          },
+          data: { health_id: generatedHealthId, name },
           emailRedirectTo: window.location.origin,
         },
       });
 
       if (signUpError) {
-        if (signUpError.message.includes('already registered')) {
-          setError('This Health ID is already registered. Try logging in instead.');
-        } else {
-          setError(signUpError.message);
-        }
+        setError(signUpError.message.includes('already registered')
+          ? 'This Health ID is already registered. Try signing in instead.'
+          : signUpError.message);
         return;
       }
 
       if (data.user) {
         if (!data.session) {
-          setSuccess(`Account created! Your Health ID is: ${generatedHealthId}. Please check your email to verify your account, then log in.`);
+          setSuccess(`Account created. Your Health ID is ${generatedHealthId}. Please check your email, then sign in.`);
           setMode('login');
           setHealthId(generatedHealthId);
           setPassword('');
@@ -139,218 +170,160 @@ export function PatientAuth({ onBack }: PatientAuthProps) {
     }
   };
 
+  const switchMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    setShowPassword(false);
+    clearMessages();
+  };
+
   return (
-    <div className="min-h-screen bg-[#f5f8fc] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">Patient Portal</h1>
-          <p className="text-gray-600 mt-2">
-            {mode === 'login' ? 'Sign in to your health account' : 'Create your health identity'}
-          </p>
-        </div>
-
-        {/* Auth Form */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          {/* Mode Toggle */}
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => { setMode('login'); setError(null); setSuccess(null); }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'login'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <LogIn className="w-4 h-4 inline mr-2" />
-              Login
-            </button>
-            <button
-              onClick={() => { setMode('signup'); setError(null); setSuccess(null); }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'signup'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <UserPlus className="w-4 h-4 inline mr-2" />
-              Sign Up
-            </button>
+    <div className="min-h-screen bg-[#f4f7fb] text-[#122035]">
+      <header className="h-[71px] border-b border-[#dde4ed] bg-[#f7f9fc]">
+        <div className="mx-auto flex h-full max-w-[1080px] items-center justify-between px-6 lg:px-0">
+          <div className="flex items-center gap-3">
+            <img src="/assets/images/image%20copy.png" alt="MediChain logo" className="h-7 w-7 object-contain" />
+            <span className="text-[16px] font-bold tracking-[-0.03em] text-[#102038]">MediChain</span>
           </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-sm">
-              {success}
-            </div>
-          )}
-
-          {/* Login Form */}
-          {mode === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Health ID
-                </label>
-                <input
-                  type="text"
-                  value={healthId}
-                  onChange={(e) => setHealthId(e.target.value.toUpperCase())}
-                  placeholder="MC-2026-XXXXXXXX"
-                  required
-                  className="w-full px-4 py-3 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 placeholder-gray-400 uppercase tracking-wider"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Enter your 8-digit Health ID
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                    className="w-full px-4 py-3 pr-12 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-5 h-5" />
-                    Sign In
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          {/* Signup Form */}
-          {mode === 'signup' && (
-            <form onSubmit={handleSignup} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  required
-                  className="w-full px-4 py-3 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Health ID (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={healthId}
-                  onChange={(e) => setHealthId(e.target.value.toUpperCase())}
-                  placeholder="Leave empty to auto-generate"
-                  className="w-full px-4 py-3 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 uppercase tracking-wider"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  If empty, we'll generate a unique Health ID for you
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a password (min 6 characters)"
-                    required
-                    minLength={6}
-                    className="w-full px-4 py-3 pr-12 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm your password"
-                  required
-                  className="w-full px-4 py-3 rounded-lg bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Creating account...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-5 h-5" />
-                    Create Health ID
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+          <button
+            type="button"
+            onClick={onBack}
+            className="group inline-flex items-center gap-2 text-[14px] font-medium text-[#263d5a] transition-colors hover:text-[#2452d2]"
+          >
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+            Back to home
+          </button>
         </div>
-      </div>
+      </header>
+
+      <main className="mx-auto flex min-h-[calc(100vh-71px)] max-w-[1080px] items-center px-6 py-14 lg:px-0 lg:py-20">
+        <div className="grid w-full items-center gap-14 lg:grid-cols-[1fr_432px] lg:gap-[74px]">
+          <section className="hidden lg:block">
+            <p className="text-[14px] font-bold uppercase tracking-[0.12em] text-[#2d5ee8]">Patient portal</p>
+            <h1 className="mt-3 max-w-[470px] font-serif text-[52px] leading-[1.04] tracking-[-0.045em] text-[#111c2e]">
+              Access your secure health records.
+            </h1>
+            <p className="mt-3 max-w-[430px] text-[17px] leading-[1.5] text-[#4c6380]">
+              Sign in to view the information and tools available to your role.
+            </p>
+            <div className="mt-9 flex items-start gap-4">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center text-[#2d6af2]">
+                <LockKeyhole className="h-6 w-6" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-[15px] font-semibold text-[#182b45]">Encrypted access</p>
+                <p className="mt-1 text-[14px] leading-6 text-[#59708c]">Your credentials and record access are protected.</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="w-full rounded-[10px] border border-[#dfe6ee] bg-white p-7 shadow-[0_14px_34px_rgba(31,55,88,0.08)] sm:p-9">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#edf2ff] text-[#2d64e8]">
+                <UserRound className="h-6 w-6" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-[#526986]">Patient portal</p>
+                <h2 className="mt-0.5 font-serif text-[27px] leading-tight tracking-[-0.03em] text-[#101b2d]">
+                  {mode === 'login' ? 'Sign in to MediChain' : 'Create your account'}
+                </h2>
+              </div>
+            </div>
+            <div className="my-7 h-px bg-[#e1e6ed]" />
+
+            {error && <div className="mb-5 rounded-md border border-[#f2caca] bg-[#fff5f5] px-3 py-2.5 text-[13px] leading-5 text-[#a83d3d]">{error}</div>}
+            {success && <div className="mb-5 rounded-md border border-[#bce5d2] bg-[#f1fbf5] px-3 py-2.5 text-[13px] leading-5 text-[#197247]">{success}</div>}
+
+            {mode === 'login' ? (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div>
+                  <label htmlFor="patient-identifier" className="block text-[14px] font-semibold text-[#17263b]">Email address</label>
+                  <input
+                    id="patient-identifier"
+                    type="text"
+                    value={healthId}
+                    onChange={(e) => setHealthId(e.target.value)}
+                    placeholder="name@organization.com"
+                    autoComplete="username"
+                    required
+                    className="mt-2 h-12 w-full rounded-md border border-[#c8d1dc] bg-white px-3.5 text-[15px] text-[#17263b] outline-none transition focus:border-[#2d64e8] focus:ring-2 focus:ring-[#dbe5ff] placeholder:text-[#8899ad]"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="patient-password" className="block text-[14px] font-semibold text-[#17263b]">Password</label>
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={resettingPassword}
+                      className="text-[14px] font-semibold text-[#245bdc] transition-colors hover:text-[#173eaa] disabled:opacity-60"
+                    >
+                      {resettingPassword ? 'Sending...' : 'Forgot password?'}
+                    </button>
+                  </div>
+                  <div className="relative mt-2">
+                    <input
+                      id="patient-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      required
+                      className="h-12 w-full rounded-md border border-[#c8d1dc] bg-white px-3.5 pr-12 text-[15px] text-[#17263b] outline-none transition focus:border-[#2d64e8] focus:ring-2 focus:ring-[#dbe5ff]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#76879a] transition-colors hover:text-[#2d64e8]"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#2d5ee8] text-[15px] font-bold text-white shadow-[0_4px_10px_rgba(45,94,232,0.2)] transition-all hover:-translate-y-0.5 hover:bg-[#2452d2] disabled:cursor-not-allowed disabled:bg-[#8ea9ed]"
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-[18px] w-[18px]" />}
+                  {loading ? 'Signing in...' : 'Sign in securely'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div>
+                  <label htmlFor="patient-name" className="block text-[14px] font-semibold text-[#17263b]">Full name</label>
+                  <input id="patient-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your full name" required className="mt-2 h-12 w-full rounded-md border border-[#c8d1dc] px-3.5 text-[15px] outline-none focus:border-[#2d64e8] focus:ring-2 focus:ring-[#dbe5ff]" />
+                </div>
+                <div>
+                  <label htmlFor="signup-health-id" className="block text-[14px] font-semibold text-[#17263b]">Health ID <span className="font-normal text-[#71839a]">(optional)</span></label>
+                  <input id="signup-health-id" type="text" value={healthId} onChange={(e) => setHealthId(e.target.value.toUpperCase())} placeholder="Leave empty to auto-generate" className="mt-2 h-12 w-full rounded-md border border-[#c8d1dc] px-3.5 text-[15px] outline-none focus:border-[#2d64e8] focus:ring-2 focus:ring-[#dbe5ff]" />
+                </div>
+                <div>
+                  <label htmlFor="signup-password" className="block text-[14px] font-semibold text-[#17263b]">Password</label>
+                  <input id="signup-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required placeholder="At least 6 characters" className="mt-2 h-12 w-full rounded-md border border-[#c8d1dc] px-3.5 text-[15px] outline-none focus:border-[#2d64e8] focus:ring-2 focus:ring-[#dbe5ff]" />
+                </div>
+                <div>
+                  <label htmlFor="confirm-password" className="block text-[14px] font-semibold text-[#17263b]">Confirm password</label>
+                  <input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="mt-2 h-12 w-full rounded-md border border-[#c8d1dc] px-3.5 text-[15px] outline-none focus:border-[#2d64e8] focus:ring-2 focus:ring-[#dbe5ff]" />
+                </div>
+                <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#2d5ee8] text-[15px] font-bold text-white transition-colors hover:bg-[#2452d2] disabled:bg-[#8ea9ed]">
+                  {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+                  {loading ? 'Creating account...' : 'Create patient account'}
+                </button>
+              </form>
+            )}
+
+            <p className="mt-6 text-center text-[13px] leading-5 text-[#526985]">
+              {mode === 'login' ? (
+                <>Need access help? Contact your MediChain administrator. <button type="button" onClick={() => switchMode('signup')} className="font-semibold text-[#245bdc] hover:text-[#173eaa]">Create an account</button></>
+              ) : (
+                <>Already have an account? <button type="button" onClick={() => switchMode('login')} className="font-semibold text-[#245bdc] hover:text-[#173eaa]">Sign in</button></>
+              )}
+            </p>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
