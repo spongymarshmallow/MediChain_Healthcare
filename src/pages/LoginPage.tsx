@@ -39,17 +39,6 @@ const roles: { id: UserRole; label: string; description: string; icon: React.Ele
   },
 ];
 
-function BrandMark() {
-  return (
-    <span className="relative block h-6 w-6" aria-hidden="true">
-      <span className="absolute left-2 top-0 h-6 w-2.5 rounded-full bg-pink-500" />
-      <span className="absolute bottom-0 left-2 h-6 w-2.5 rounded-full bg-cyan-500" />
-      <span className="absolute left-0 top-2 h-2.5 w-6 rounded-full bg-blue-600" />
-      <span className="absolute left-2 top-2 h-2.5 w-2.5 rounded-full bg-emerald-400" />
-    </span>
-  );
-}
-
 export function LoginPage() {
   const [view, setView] = useState<View>('roles');
   const navigate = useNavigate();
@@ -79,10 +68,13 @@ export function LoginPage() {
       <header className="h-[70px] border-b border-[#e3e8ef] bg-[#f7f9fc]">
         <div className="mx-auto flex h-full max-w-[1080px] items-center justify-between px-6 lg:px-0">
           <div className="flex items-center gap-3">
-            <BrandMark />
+            <img
+              src="/assets/images/image%20copy.png"
+              alt="MediChain logo"
+              className="h-7 w-7 object-contain"
+            />
             <span className="text-[16px] font-bold tracking-[-0.03em]">MediChain</span>
           </div>
-          <span className="text-[14px] font-medium text-[#233149]">Portals</span>
         </div>
       </header>
 

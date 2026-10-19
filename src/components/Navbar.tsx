@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Heart,
   Bell,
   Settings,
   Sun,
@@ -46,8 +45,12 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to={`/${role || ''}`} className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary-100 dark:bg-primary-900/30">
-              <Heart className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 dark:bg-primary-900/30">
+              <img
+                src="/assets/images/image%20copy.png"
+                alt="MediChain logo"
+                className="h-7 w-7 object-contain"
+              />
             </div>
             <div>
               <span className="text-xl font-bold text-gray-900 dark:text-white">MediChain</span>
